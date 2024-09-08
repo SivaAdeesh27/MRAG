@@ -106,7 +106,7 @@ def search_tool(query: str):
         search_query = f"site:https://courses.lumenlearning.com/ Image of {result}" 
         params = {
 
-            "api_key": "e29437416bc0fc3384843da6dfbf7165b2b30f46448d6f560e124184b63ac0a9", 
+            "api_key": "de985e1e9b76774435d4223eff195f7e65152efd1f8776539b0076c4fe54a364", 
 
             "engine": "google", 
 
