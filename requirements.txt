@@ -1,0 +1,8 @@
+gradio
+crewai
+langchain_groq
+langchain_huggingface
+diffusers
+crewai_tools
+gradio_client
+google-search-results
