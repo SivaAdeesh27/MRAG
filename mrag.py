@@ -22,8 +22,18 @@ from langchain_community.utilities import GoogleSerperAPIWrapper
 from transformers import pipeline
 import serpapi
 from langchain_core.prompts import ChatPromptTemplate
+import pathlib
+import textwrap
+import google.generativeai as genai
+# A utility to securely store your API key
+import io
 
 os.environ['SERPER_API_KEY'] = "dbab3fad5ec37c15ccf2fbe756db009240920ebe"
+
+
+search = GoogleSerperAPIWrapper()
+
+urls = []
 
 # Memory management setup
 conversation_store = defaultdict(list)
@@ -39,7 +49,7 @@ def get_conversation_history(session_id):
 
 def generate_prompt_with_history(session_id, query):
     history = get_conversation_history(session_id)
-    
+
     if not history:
         return f"User: {query}\n"
 
@@ -64,16 +74,16 @@ llm_text = ChatGroq(model="llama-3.1-70b-versatile", groq_api_key=os.getenv('GRO
 # llm_text = ChatGroq(model="llama-3.1-8b-instant", groq_api_key=os.getenv('GROQ_API_KEY'))
 
 def search_tool(query: str):
-    
+
     """
     Search for the given query
     """
-    # search_query = "site:https://courses.lumenlearning.com/  Image of {query} " 
+    # search_query = "site:https://courses.lumenlearning.com/  Image of {query} "
     # params = {
 
-    #     "api_key": "e29437416bc0fc3384843da6dfbf7165b2b30f46448d6f560e124184b63ac0a9", 
+    #     "api_key": "e29437416bc0fc3384843da6dfbf7165b2b30f46448d6f560e124184b63ac0a9",
 
-    #     "engine": "google", 
+    #     "engine": "google",
 
     #     "q": search_query,
 
@@ -87,7 +97,7 @@ def search_tool(query: str):
             "system",
             "You are a helpful assistant that takes the query from the user and extract only the main content from the given query which can be useful for image search",
         ),
-        ("human", "{query}"),
+        ("human", query),
     ]
     )
 
@@ -102,13 +112,13 @@ def search_tool(query: str):
     result = res.replace('"', '')
     m = llm_text.invoke("only tell whether the term :"+result+" is realted to medical or not.if related say:'yes' else 'no'.")
 
-    if m.content == "yes" or m.content == "Yes":
-        search_query = f"site:https://courses.lumenlearning.com/ Image of {result}" 
+    if m.content.lower() == "yes":
+        search_query = f"site:https://courses.lumenlearning.com/ Image of {result}"
         params = {
 
-            "api_key": "de985e1e9b76774435d4223eff195f7e65152efd1f8776539b0076c4fe54a364", 
+            "api_key": "de985e1e9b76774435d4223eff195f7e65152efd1f8776539b0076c4fe54a364",
 
-            "engine": "google", 
+            "engine": "google",
 
             "q": search_query,
 
@@ -122,10 +132,9 @@ def search_tool(query: str):
         if 'inline_images' in search_results.keys():
           return (search_results['inline_images'][0]['original'])
         else:
-          return None 
+          return None
     else:
         return None
-
 
 
 def create_pdf_search_tool(pdf_path):
@@ -151,7 +160,7 @@ def create_pdf_search_tool(pdf_path):
 
 file_upload_agent = Agent(
     role="FileUploadAgent",
-    goal="Analyze uploaded file and provide responses based on the knowleage obtained by uploaded file to the {query}",
+    goal="Analyze uploaded file and provide responses based on the knowledge obtained by uploaded file to the {query}",
     backstory="Expert in extracting and processing information from uploaded file and answering queries.",
     llm=llm_text,
     tools=[],
@@ -174,14 +183,14 @@ file_upload_agent_analyser = Agent(
 
 
 file_upload_task = Task(
-    description="Analyze the content of the uploaded file and provide insights or answers based on  the {query} from knowledge obtained by the uploaded file",
-    expected_output="A detailed response based on the uploaded file content related to the {query} ",
+    description="Analyze the content of the uploaded file and provide insights or answers based on  the query from knowledge obtained by the uploaded file",
+    expected_output="A detailed response based on the uploaded file content related to the query ",
     agent=file_upload_agent
 )
 
 file_upload_analyser_task = Task(
-    description="Modify the retrieved content from FileUploadAgent with proper formatting and user readable based on the {query}",
-    expected_output="retrievent content with proper formatting and readeable based on the {query}",
+    description="Modify the retrieved content from FileUploadAgent with proper formatting and user readable based on the query",
+    expected_output="retrievent content with proper formatting and readeable based on the query",
     agent=file_upload_agent_analyser,
     context = [file_upload_task]
 )
@@ -205,12 +214,33 @@ crew2 = Crew(
 
 
 
-def route_task(session_id, user_input=None, file_path=None):
-    if file_path:
+def route_task(session_id, user_input=None, file_path=None,image_input=None):
+    if image_input:
+        GOOGLE_API_KEY="AIzaSyBYVVw99iM150qmeFmA3t_gFJNQcn4jeDo"
+        genai.configure(api_key=GOOGLE_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        img_byte_arr = io.BytesIO()
+        image_input.save(img_byte_arr, format='PNG')  # You can specify the format you need
+        img_byte_arr = img_byte_arr.getvalue()
+        #image = Image.open(img_byte_arr)
+        # Convert image to byte stream (you can change format if needed)
+        response = model.generate_content([image_input,"What is in the image?.Give a well formatted result"])
+        # Assuming response is the GenerateContentResponse object
+        text_content = response.candidates[0].content.parts[0].text
+
+        # Print or use the extracted text
+        print(text_content)
+        result={}
+        result['tasks_output'] = text_content
+        result['raw'] = None
+        return result
+
+    elif file_path:
         add_to_conversation(session_id, "User uploaded a PDF file.")
         pdf_search_tool = create_pdf_search_tool(file_path)
         file_upload_agent.tools = [pdf_search_tool]
 
+        # prompt = user_input
         prompt = generate_prompt_with_history(session_id, user_input)
         inputs = {'pdf': file_path, 'query': prompt}
         result={}
@@ -251,6 +281,11 @@ custom_css = """
         /*border-radius: 5px;  Rounded corners */
         background-color: #ffffff; /* Background color */
         padding: 10px; /* Padding inside the box */
+        color: #000000; /* Text color */
+    }
+    .flex-item-left{
+      background-color: #ffffff;
+      color: #000000; /* Text color */
     }
 """
 js = """
@@ -296,11 +331,11 @@ with gr.Blocks(css=custom_css,js=js) as demo:
                     app_functionality = gr.Dropdown(
                         label="Chatbot functionality",
                         #choices=["Text Query", "File Upload", "Generate Image","Visual Q&A","Audio"],
-                        choices=["File Upload"],
-                        value="File Upload", interactive=True)
-                    input_txt = gr.Textbox(label="Enter message and upload file...", lines=2, show_label=False)
-                    file_upload = gr.File(label="Upload PDF file", file_types=['.pdf'], interactive=True)
-                    # image_upload =  gr.Image(label="Picture here", type="pil")
+                        choices=["File Upload","Image Upload"],
+                        value="File Upload", interactive=True,elem_classes="flex-item-left")
+                    input_txt = gr.Textbox(label="Enter message and upload file...", lines=2, show_label=False,elem_classes="flex-item-left")
+                    file_upload = gr.File(label="Upload PDF file", file_types=['.pdf'], interactive=True,elem_classes="flex-item-left")
+                    image_upload =  gr.Image(label="Upload Picture", type="pil",elem_classes="flex-item-left")
             #         audio_input = gr.Audio(
             #     label="Upload or Record Audio",
             #     type="filepath",  # Use 'file' to get the file path
@@ -318,12 +353,12 @@ with gr.Blocks(css=custom_css,js=js) as demo:
             clear_btn.click(
                 fn=clear_all,
                 inputs=[],
-                outputs=[input_txt, file_upload,chatbot_output, image_output]
+                outputs=[input_txt, file_upload,image_upload,chatbot_output, image_output]
             )
 
 
             # Define action on submit
-            def handle_submit(input_txt, file_upload, app_functionality, session_id):
+            def handle_submit(input_txt, file_upload,image_upload, app_functionality, session_id):
                 if not session_id:
                     session_id = str(uuid.uuid4())
 
@@ -333,21 +368,26 @@ with gr.Blocks(css=custom_css,js=js) as demo:
                 if app_functionality == "File Upload":
                     if file_upload:
                        result = route_task(session_id,file_path=file_upload.name, user_input=input_txt)
+                elif app_functionality == "Image Upload":
+                    if image_upload:
+                       print(image_upload)
+                       result = route_task(session_id,file_path=file_upload, user_input=input_txt,image_input = image_upload)
 
 
                 # Handle the output
                 if isinstance(result, dict) :
                     raw_output = result.get('raw', None)
                     tasks_output = result.get('tasks_output', [])
-
+                    if app_functionality == "File Upload":
+                      tasks_output = tasks_output.raw
                     if tasks_output:
                         image_path = raw_output
                         print("Image_path: ",image_path)
                         #image_output.update(value=image_path, visible=True)
-                        print("Tasks output",tasks_output.raw)
+                        print("Tasks output",tasks_output)
                         #summary = tasks_output[0].get('summary', 'No summary available.')
-                        add_to_conversation(session_id, tasks_output.raw, role="AI")
-                        return tasks_output.raw,image_path,session_id
+                        add_to_conversation(session_id, tasks_output, role="AI")
+                        return tasks_output,image_path,session_id
                     else:
                         return "No valid output available.", None, session_id
                 else:
@@ -355,6 +395,6 @@ with gr.Blocks(css=custom_css,js=js) as demo:
                     return str(result), None, session_id
 
 
-            submit_btn.click(fn=handle_submit, inputs=[input_txt, file_upload, app_functionality, session_id], outputs=[chatbot_output, image_output, session_id])
+            submit_btn.click(fn=handle_submit, inputs=[input_txt, file_upload,image_upload, app_functionality, session_id], outputs=[chatbot_output, image_output, session_id])
 
 demo.launch(debug=True)
