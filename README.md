@@ -11,6 +11,8 @@ This project is an Advanced Multimodal ChatBot built using the Crew AI framework
 - **Image Search**: The chatbot can perform image searches related to the queries and display the relevant image.
 - **Custom Styling**: The Gradio interface has custom CSS for a unique look and feel.
 - **Sequential Processing**: Tasks are processed sequentially, ensuring that each step is completed before moving on to the next.
+- **Supports Conversational Flow**: Supports follow up questions bu the user.
+- **Visual Q&A**: Image based question and answering is supported.
 
 ## Requirements
 - Python 3.8+
@@ -50,8 +52,9 @@ JavaScript: The js variable allows for adding custom JavaScript animations to th
 
 ### Example Workflow
 Upload a PDF File: The user uploads a PDF file containing relevant content.
-Input a Query: The user enters a query related to the content of the PDF.
+Input a text Query: The user enters a query related to the content of the PDF.
 Receive Output: The chatbot processes the PDF and returns a formatted response. If relevant, an image related to the query is also displayed.
+Input a image query: The user enters a image query and the respective answer is generated.
 
 ### Credits
 This project utilizes several open-source libraries and tools, including Crew AI, LangChain, Gradio, and SerpAPI. Special thanks to the developers and contributors of these tools.
