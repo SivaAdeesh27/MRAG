@@ -6,3 +6,4 @@ diffusers
 crewai_tools
 gradio_client
 google-search-results
+google-generativeai
